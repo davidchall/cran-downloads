@@ -1,7 +1,9 @@
 library(cranlogs)
+library(pkgsearch)
 library(ggplot2)
 library(shiny)
 library(dplyr)
+library(purrr)
 
 today <- Sys.Date() - 1
 last_month <- today - 60
@@ -31,6 +33,11 @@ shinyServer(function(input, output, session) {
 
     df %>% group_by(package) %>% do(show_trend(.))
   })
+  releases <- reactive({
+    map_dfr(pkgs(), pkgsearch::cran_package_history) %>%
+      transmute(package = Package, date = as.Date(date)) %>%
+      filter(date >= input$range[1], date <= input$range[2])
+  })
 
   y_range <- reactive(range(downloads()$count, downloads()$trend + downloads()$remainder))
 
@@ -56,6 +63,7 @@ shinyServer(function(input, output, session) {
     if (!input$showTrend) {
       ggplot(downloads(), aes(date, count, colour = package)) +
         geom_line() +
+        geom_vline(aes(xintercept = date, colour = package), data = releases()) +
         ylim(y_range()) +
         xlab(NULL) +
         ylab("Daily downloads")
@@ -63,6 +71,7 @@ shinyServer(function(input, output, session) {
       ggplot(downloads(), aes(date, colour = package)) +
         geom_linerange(aes(ymin = trend, ymax = trend + remainder), colour = "grey70") +
         geom_line(aes(y = trend)) +
+        geom_vline(aes(xintercept = date - 3, colour = package), data = releases()) +
         ylim(y_range()) +
         xlab(NULL) +
         ylab("Daily downloads (smoothed)")
